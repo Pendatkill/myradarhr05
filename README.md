@@ -5,7 +5,7 @@
 <h1 align="center">My Radar</h1>
 <p align="center">Radar ultrasónico con ESP32, visor web, visor de escritorio y app Android<br>by <b>pendatkill_dev</b></p>
 
-![Visor web del radar en modo demo](docs/visor_web.png)
+![App My Radar en un móvil Android, conectada por Bluetooth LE: radar semicircular con un contacto C-01 a 25 cm, rumbo 088°, distancia 55 cm y nivel de amenaza ALTA](docs/app_radar.jpg)
 
 Un sensor HC-SR04 montado sobre un servo SG90 barre 176° y mide la distancia a lo que tiene delante. El ESP32 envía cada medida por **USB**, **WiFi** y **Bluetooth LE**, y tres clientes la dibujan como una pantalla de radar:
 
@@ -104,6 +104,8 @@ La app ofrece tres canales:
 ### 3. Visor web
 
 Abre [`visor_web/index.html`](visor_web/index.html) en **Chrome o Edge**, pulsa **Conectar ESP32** y elige el puerto USB. Arranca en modo demo.
+
+![Visor web del radar en modo demo, con panel de lectura, proximidad por ángulo y ajustes](docs/visor_web.png)
 
 ### 4. Visor de escritorio
 
