@@ -117,6 +117,33 @@ python visor_pc/radar_pc.py --demo     # sin hardware
 
 Cierra el Monitor Serie de Arduino antes de abrir cualquier visor: solo un programa puede usar el puerto a la vez.
 
+## Versiones probadas
+
+| Herramienta o librería | Versión |
+|---|---|
+| Core ESP32 para Arduino | 2.0.x |
+| ESP32Servo | 1.2.1 |
+| LiquidCrystal I2C (Frank de Brabander) | 1.1.2 |
+| Flutter / Dart | 3.44.1 / 3.12.1 |
+| Android | 7.0 (API 24) o superior. Hasta Android 11, el Bluetooth LE pide permiso de ubicación |
+| Python (visor de escritorio) | 3.11–3.13 con pygame 2.6 y pyserial 3.5 |
+
+Con el core ESP32 3.x hace falta ESP32Servo 3.x. El resto del firmware no cambia, pero esa combinación no está probada.
+
+## Problemas habituales
+
+| Síntoma | Causa y solución |
+|---|---|
+| La compilación dice que el sketch es demasiado grande | Elige el esquema de particiones **Huge APP** |
+| La distancia siempre es `-1` | TRIG y ECHO intercambiados, o falta alimentación del sensor. Prueba a cambiar los pines 19 y 23 |
+| La LCD se enciende pero no muestra texto | Su dirección I2C es 0x3F: cámbiala en `LCD_DIR`. Si no, ajusta el contraste con el potenciómetro del adaptador |
+| El ESP32 se reinicia al mover el servo | Caídas de tensión. Alimenta el servo aparte y añade el condensador |
+| El visor web conecta pero no llegan datos | Pulsa el botón RST/EN de la placa. En Windows algunos adaptadores dejan el ESP32 en reset al abrir el puerto |
+| «Acceso denegado» al abrir el puerto | Otro programa lo tiene abierto: cierra el Monitor Serie de Arduino o el otro visor |
+| La app no conecta por la red MyRadar | Acepta «mantener la conexión» cuando Android avise de que esa WiFi no tiene internet |
+| La app no encuentra el radar por Bluetooth | Comprueba que el Bluetooth y los permisos de «Dispositivos cercanos» están activos |
+| Gradle falla con `PKIX path building failed` | Un antivirus o proxy inspecciona HTTPS. Añade su certificado raíz al almacén de Java o desactiva la inspección mientras compilas |
+
 ## Protocolo
 
 El ESP32 envía una línea de texto por medida, unas 15 por segundo:
