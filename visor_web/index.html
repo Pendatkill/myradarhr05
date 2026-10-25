@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radar Ultrasónico ESP32</title>
+<link rel="icon" href="assets/logo_cuervo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Consola de sonar: pantalla de fósforo a la izquierda, columna de instrumentos a la derecha.
+   Diseño oscuro a propósito (es un instrumento), con colores explícitos. */
+:root {
+  --ink: #061317;        /* fondo de la consola */
+  --bezel: #0a1c21;      /* columna y barras */
+  --line: #183840;       /* filetes y rejilla */
+  --phosphor: #7cf5d0;   /* haz y lecturas */
+  --phosphor-dim: #2f7f6d;
+  --echo: #ffb547;       /* ecos */
+  --alert: #ff5a4e;      /* zona de alerta */
+  --py: #ffd43b;         /* amarillo del logo */
+  --text: #dcefea;
+  --muted: #7fa39b;
+  --f-display: "Chakra Petch", "Bahnschrift", "Segoe UI", sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --f-data: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--ink); color: var(--text);
+  font: 15px/1.45 var(--f-body);
+  display: grid; grid-template-rows: auto 1fr auto;
+  padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+}
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--phosphor); outline-offset: 2px; }
+
+/* ---------- cabecera */
+.top {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px;
+  padding: 12px max(16px, 2vw); background: var(--bezel); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.brand img {
+  height: 58px; width: auto; padding: 4px 8px; border-radius: 12px;
+  background: radial-gradient(circle at 50% 40%, #2a4a44, #15302c 70%); border: 1px solid var(--line);
+}
+.brand h1 {
+  margin: 0; font: 700 1.55rem/1.05 var(--f-display); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--phosphor); text-wrap: balance;
+}
+.credit { margin: 4px 0 0; font: 500 .9rem var(--f-data); color: var(--muted); }
+.credit b { color: var(--py); font-weight: 600; }
+.conn { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+  font: 600 .78rem var(--f-data); letter-spacing: .08em; border: 1px solid var(--line); color: var(--muted);
+}
+.pill i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.pill[data-s="vivo"] { color: var(--phosphor); }
+.pill[data-s="demo"] { color: var(--py); }
+.pill[data-s="espera"] { color: var(--echo); }
+.pill[data-s="error"] { color: var(--alert); }
+.pill[data-s="vivo"] i { animation: latido 1.2s ease-in-out infinite; }
+@keyframes latido { 50% { opacity: .35; } }
+.btn {
+  padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+  font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.btn:hover { border-color: var(--phosphor-dim); background: #0f2a2f; }
+.btn.primary { background: var(--phosphor); color: var(--ink); border-color: var(--phosphor); }
+.btn.primary:hover { background: #a6f9e1; }
+
+/* ---------- cuerpo */
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+.scope { position: relative; min-height: 0; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 85%, #0b2a2b 0%, var(--ink) 65%); }
+#radar { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.banner {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  padding: 8px 20px; border-radius: 10px; border: 1.5px solid var(--alert); background: #2a0d0d;
+  font: 700 1.15rem var(--f-display); letter-spacing: .06em; text-transform: uppercase; color: var(--alert);
+  white-space: nowrap; animation: parpadeo .7s steps(2) infinite;
+}
+@keyframes parpadeo { 50% { opacity: .55; } }
+.scope.alerta { box-shadow: inset 0 0 0 3px var(--alert), inset 0 0 60px #ff5a4e33; }
+.aviso {
+  position: absolute; left: 16px; right: 16px; bottom: 16px; padding: 12px 16px; border-radius: 10px;
+  background: #2a1d07; border: 1px solid var(--echo); color: var(--text);
+}
+
+.panel {
+  background: var(--bezel); border-left: 1px solid var(--line); overflow-y: auto; min-height: 0;
+  display: flex; flex-direction: column;
+}
+.sec { padding: 12px 20px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.lbl { font: 600 .72rem var(--f-data); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.lectura { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.big { font: 600 2.3rem/1 var(--f-display); font-variant-numeric: tabular-nums; color: var(--phosphor); }
+.big small { font-size: .45em; color: var(--muted); margin-left: 4px; }
+.big.cerca { color: var(--alert); }
+.big.vacio { color: var(--phosphor-dim); }
+.sub { font: .82rem var(--f-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+.near { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.near .big { font-size: 2rem; color: var(--echo); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stats div { display: grid; gap: 2px; }
+.stats b { font: 600 1.15rem var(--f-data); font-variant-numeric: tabular-nums; }
+#perfil { width: 100%; height: 90px; display: block; }
+
+.ajuste { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 12px; }
+.ajuste output { font: .85rem var(--f-data); color: var(--phosphor); font-variant-numeric: tabular-nums; }
+.ajuste input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--phosphor); }
+.toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--line); cursor: pointer; font-size: .88rem; }
+.toggles .btn { padding: 5px 12px; font-size: .88rem; }
+.toggle input { accent-color: var(--phosphor); margin: 0; }
+
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font: .82rem var(--f-data); }
+.log li { display: flex; justify-content: space-between; gap: 8px; color: var(--text); }
+.log li span { color: var(--muted); }
+.log .vacio { color: var(--muted); }
+
+/* ---------- pie */
+.foot {
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+  padding: 8px max(16px, 2vw); background: var(--bezel); border-top: 1px solid var(--line);
+  font: .8rem var(--f-data); color: var(--muted);
+}
+.keys { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+kbd { font: 600 .75rem var(--f-data); color: var(--phosphor); padding: 1px 6px; border: 1px solid var(--line);
+  border-radius: 4px; margin-right: 4px; }
+
+@media (max-width: 900px) {
+  body { height: auto; }
+  .app { grid-template-columns: 1fr; }
+  .scope { height: min(70vh, 92vw); }
+  .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .banner, .pill i { animation: none !important; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <img src="assets/logo_cuervo.png" alt="Cuervo sobre Python" onerror="this.hidden=true">
+    <div>
+      <h1>Radar ultrasónico</h1>
+      <p class="credit">desarrollado por <b>pendatkill_dev</b></p>
+    </div>
+  </div>
+  <div class="conn">
+    <span class="pill" id="pill" data-s="demo"><i></i><span id="pillTxt">DEMO</span></span>
+    <button class="btn primary" id="btnConectar" type="button">Conectar ESP32</button>
+    <button class="btn" id="btnDemo" type="button">Modo demo</button>
+  </div>
+</header>
+
+<main class="app">
+  <section class="scope" id="scope" aria-label="Pantalla del radar">
+    <canvas id="radar"></canvas>
+    <div class="banner" id="banner" hidden>¡Objeto cerca! <span id="bannerD"></span></div>
+    <div class="aviso" id="aviso" hidden></div>
+  </section>
+
+  <aside class="panel">
+    <div class="sec">
+      <div class="lectura">
+        <div><div class="lbl">Ángulo</div><div class="big" id="vAng">90<small>°</small></div></div>
+        <div><div class="lbl">Distancia</div><div class="big vacio" id="vDist">---</div></div>
+      </div>
+      <div class="sub" id="vEco">eco: sin retorno</div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">Objeto más cercano</div>
+      <div class="near"><span class="big" id="vNear">—</span><span class="sub" id="vNearA"></span></div>
+      <div class="stats">
+        <div><span class="lbl">Ecos</span><b id="vEcos">0</b></div>
+        <div><span class="lbl">Med/s</span><b id="vRate">0.0</b></div>
+        <div><span class="lbl">Barridos</span><b id="vSweeps">0</b></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">Proximidad por ángulo</div>
+      <canvas id="perfil" aria-label="Gráfico de proximidad por ángulo"></canvas>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">Ajustes</div>
+      <label class="ajuste" for="inMax">Alcance <output id="oMax">200 cm</output>
+        <input type="range" id="inMax" min="50" max="400" step="10" value="200"></label>
+      <label class="ajuste" for="inAlerta">Distancia de alerta <output id="oAlerta">30 cm</output>
+        <input type="range" id="inAlerta" min="5" max="100" step="5" value="30"></label>
+      <label class="ajuste" for="inVida">Persistencia de ecos <output id="oVida">4 s</output>
+        <input type="range" id="inVida" min="1" max="12" step="1" value="4"></label>
+      <div class="toggles">
+        <label class="toggle" for="inInv"><input type="checkbox" id="inInv"> Invertir lados</label>
+        <label class="toggle" for="inSon"><input type="checkbox" id="inSon"> Pitido de alerta</label>
+        <button class="btn" id="btnLimpiar" type="button">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">Registro de alertas</div>
+      <ul class="log" id="log"><li class="vacio">Sin alertas todavía</li></ul>
+    </div>
+  </aside>
+</main>
+
+<footer class="foot">
+  <div class="keys">
+    <span><kbd>C</kbd>limpiar</span><span><kbd>F</kbd>pantalla completa</span>
+    <span><kbd>I</kbd>invertir</span><span><kbd>D</kbd>demo</span>
+  </div>
+  <span>HC-SR04 · 40 kHz · c = 343 m/s · 115200 baudios</span>
+</footer>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = {
+  ink: css("--ink"), line: css("--line"), ph: css("--phosphor"), phDim: css("--phosphor-dim"),
+  echo: css("--echo"), alert: css("--alert"), muted: css("--muted"), text: css("--text"),
+};
+const FONT_DATA = css("--f-data");
+
+// Chips USB-serie habituales en placas ESP32
+const CHIPS = { 0x10C4: "CP210x", 0x1A86: "CH340", 0x303A: "ESP32 USB", 0x0403: "FTDI" };
+
+// ---------------------------------------------------------------- ajustes
+const S = { max: 200, alerta: 30, vida: 4, invertir: false, sonido: false };
+try { Object.assign(S, JSON.parse(localStorage.getItem("radar.ajustes") || "{}")); } catch {}
+const guardar = () => { try { localStorage.setItem("radar.ajustes", JSON.stringify(S)); } catch {} };
+
+// ---------------------------------------------------------------- estado
+const st = {
+  ang: 90, dist: -1, puntos: new Map(), estela: [], llegadas: [], ultimo: 0,
+  modo: "demo", chip: "", error: "", barridos: 0, dir: 0, prev: null,
+  enAlerta: false, ultimaAlerta: 0, eventos: [], port: null, reader: null,
+};
+
+function nuevoDato(a, d) {
+  const t = performance.now();
+  if (st.prev !== null) {
+    const dir = Math.sign(a - st.prev);
+    if (dir && st.dir && dir !== st.dir) st.barridos++;
+    if (dir) st.dir = dir;
+  }
+  if (st.modo === "serie" && !st.ultimo) ocultarAviso();
+  st.prev = a; st.ang = a; st.dist = d; st.ultimo = t;
+  st.llegadas.push(t);
+  st.estela.push(a); if (st.estela.length > 40) st.estela.shift();
+  if (d > 0 && d <= S.max) st.puntos.set(a, { d, t }); else st.puntos.delete(a);
+
+  const alerta = d > 0 && d <= S.alerta;
+  if (alerta && !st.enAlerta && t - st.ultimaAlerta > 1500) {
+    st.ultimaAlerta = t;
+    registrar(a, d);
+    pitar();
+  }
+  st.enAlerta = alerta;
+}
+
+function parsear(linea) {
+  const m = /^(-?\d+),(-?\d+)$/.exec(linea.trim());
+  if (!m) return;                      // basura del arranque del ESP32, etc.
+  const a = +m[1], d = +m[2];
+  if (a >= 0 && a <= 180 && d >= -1 && d <= 1000) nuevoDato(a, d);
+}
+
+// ---------------------------------------------------------------- demo
+let demoTimer = null;
+function iniciarDemo() {
+  pararDemo();
+  st.modo = "demo"; st.error = "";
+  let ang = 90, sentido = 1, fase = 0;
+  demoTimer = setInterval(() => {
+    fase += 0.004;
+    const objetos = [
+      [35, 120, 8], [130, 160, 12], [165, 70, 6],
+      [88 + Math.sin(fase) * 30, 26 + Math.sin(fase * 1.7) * 14, 5],   // objeto que se mueve
+    ];
+    let dist = -1;
+    for (const [c, d, w] of objetos) if (Math.abs(ang - c) <= w) dist = Math.round(d + (Math.random() * 6 - 3));
+    nuevoDato(ang, dist);
+    ang += 2 * sentido;
+    if (ang >= 178 || ang <= 2) { sentido = -sentido; ang = Math.max(2, Math.min(178, ang)); }
+  }, 60);
+}
+function pararDemo() { clearInterval(demoTimer); demoTimer = null; }
+
+// ---------------------------------------------------------------- Web Serial
+async function conectar() {
+  if (!("serial" in navigator)) {
+    mostrarAviso("Este navegador no puede leer el puerto USB. Abre este archivo con Chrome o Edge.");
+    return;
+  }
+  let port;
+  try {
+    port = await navigator.serial.requestPort({ filters: Object.keys(CHIPS).map(v => ({ usbVendorId: +v })) });
+  } catch { return; }                  // el usuario cerró el selector
+  try {
+    await port.open({ baudRate: 115200 });
+    // En Windows el navegador deja DTR/RTS activos y el circuito de auto-reset
+    // mantiene el ESP32 en reset. Pulso de reset limpio y luego se sueltan ambas.
+    await port.setSignals({ dataTerminalReady: false, requestToSend: true });
+    await new Promise(r => setTimeout(r, 120));
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+  } catch (e) {
+    mostrarAviso(`No se pudo abrir el puerto (${e.message}). Cierra el Monitor Serie de Arduino o la app de Python y vuelve a intentarlo.`);
+    return;
+  }
+  await desconectar();
+  pararDemo();
+  limpiar();
+  const info = port.getInfo();
+  st.port = port; st.modo = "serie"; st.error = ""; st.ultimo = 0;
+  st.chip = CHIPS[info.usbVendorId] || "USB";
+  ocultarAviso();
+  leer(port);
+  setTimeout(() => {
+    if (st.port === port && !st.ultimo)
+      mostrarAviso("Conectado, pero el ESP32 no envía datos. Pulsa el botón RST/EN de la placa o vuelve a conectar.");
+  }, 4000);
+}
+
+async function leer(port) {
+  const dec = new TextDecoderStream();
+  const tuberia = port.readable.pipeTo(dec.writable).catch(() => {});
+  const reader = dec.readable.getReader();
+  st.reader = reader;
+  let buf = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) { parsear(buf.slice(0, i)); buf = buf.slice(i + 1); }
+      if (buf.length > 256) buf = "";
+    }
+  } catch {
+    if (st.port === port) st.error = "Conexión perdida";
+  } finally {
+    reader.releaseLock();
+    await tuberia;
+    try { await port.close(); } catch {}
+    if (st.port === port) {
+      st.port = null;
+      if (!st.error) st.error = "Desconectado";
+      mostrarAviso("Se perdió la conexión con el ESP32. Revisa el cable y pulsa «Conectar ESP32».");
+    }
+  }
+}
+
+async function desconectar() {
+  const port = st.port;
+  st.port = null;
+  if (st.reader) { try { await st.reader.cancel(); } catch {} st.reader = null; }
+  if (port) { try { await port.close(); } catch {} }
+}
+
+// ---------------------------------------------------------------- sonido
+let audio = null;
+function pitar() {
+  if (!S.sonido) return;
+  try {
+    audio ??= new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
+    o.frequency.value = 1320; o.type = "sine";
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + 0.2);
+  } catch {}
+}
+
+// ---------------------------------------------------------------- registro
+function registrar(a, d) {
+  const hora = new Date().toLocaleTimeString("es-ES");
+  st.eventos.unshift({ hora, a, d });
+  st.eventos.length = Math.min(st.eventos.length, 6);
+  const ul = $("#log");
+  ul.replaceChildren(...st.eventos.map(e => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${e.hora}</span>${e.d} cm a ${e.a}°`;
+    return li;
+  }));
+}
+
+function mostrarAviso(t) { const a = $("#aviso"); a.textContent = t; a.hidden = false; }
+function ocultarAviso() { $("#aviso").hidden = true; }
+function limpiar() { st.puntos.clear(); }
+
+// ---------------------------------------------------------------- geometría
+const cv = $("#radar"), ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1, G = { cx: 0, cy: 0, R: 0 }, rejilla = null;
+
+function medir() {
+  const r = cv.getBoundingClientRect();
+  DPR = window.devicePixelRatio || 1;
+  W = r.width; H = r.height;
+  cv.width = Math.max(1, Math.round(W * DPR)); cv.height = Math.max(1, Math.round(H * DPR));
+  const R = Math.max(30, Math.min(W / 2 - 72, H - 100));
+  G = { cx: W / 2, R, cy: (H - (R + 50 + 34)) / 2 + R + 50 };
+  rejilla = pintarRejilla();
+}
+
+function polar(a, f) {
+  const rad = (S.invertir ? 180 - a : a) * Math.PI / 180;
+  return [G.cx + G.R * f * Math.cos(rad), G.cy - G.R * f * Math.sin(rad)];
+}
+
+function semicirculo(c, radio) {
+  c.beginPath(); c.arc(G.cx, G.cy, radio, Math.PI, 2 * Math.PI); c.closePath();
+}
+
+function pintarRejilla() {
+  const off = document.createElement("canvas");
+  off.width = cv.width; off.height = cv.height;
+  const c = off.getContext("2d");
+  c.scale(DPR, DPR);
+  const { cx, cy, R } = G;
+
+  // Plato con degradado
+  const g = c.createRadialGradient(cx, cy, 0, cx, cy, R);
+  g.addColorStop(0, "#0f3a36"); g.addColorStop(1, "#071a1d");
+  semicirculo(c, R); c.fillStyle = g; c.fill();
+
+  // Zona de alerta
+  const ra = R * Math.min(1, S.alerta / S.max);
+  semicirculo(c, ra); c.fillStyle = "rgba(255,90,78,.12)"; c.fill();
+  c.strokeStyle = "rgba(255,90,78,.45)"; c.setLineDash([4, 4]); c.lineWidth = 1; c.stroke(); c.setLineDash([]);
+
+  // Anillos menores (cada 1/8) y mayores (cada 1/4)
+  for (let i = 1; i <= 8; i++) {
+    const rr = R * i / 8, mayor = i % 2 === 0;
+    c.beginPath(); c.arc(cx, cy, rr, Math.PI, 2 * Math.PI);
+    c.strokeStyle = i === 8 ? C.phDim : mayor ? "rgba(124,245,208,.22)" : "rgba(124,245,208,.08)";
+    c.lineWidth = i === 8 ? 2 : 1; c.stroke();
+    if (mayor) {
+      c.font = `12px ${FONT_DATA}`; c.fillStyle = C.muted; c.textAlign = "center"; c.textBaseline = "top";
+      const txt = `${Math.round(S.max * i / 8)}${i === 8 ? " cm" : ""}`;
+      c.fillText(txt, cx + rr, cy + 10); c.fillText(txt, cx - rr, cy + 10);
+    }
+  }
+
+  // Marcas de rumbo
+  for (let a = 0; a <= 180; a += 2) {
+    const largo = a % 30 === 0 ? 14 : a % 10 === 0 ? 8 : 3;
+    const [x1, y1] = polar(a, 1), [x2, y2] = polar(a, 1 + largo / R);
+    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2);
+    c.strokeStyle = a % 30 === 0 ? C.ph : a % 10 === 0 ? C.phDim : "rgba(124,245,208,.25)";
+    c.lineWidth = a % 30 === 0 ? 2 : 1; c.stroke();
+    if (a % 30 === 0) {
+      if (a > 0 && a < 180) {
+        const [ex, ey] = polar(a, 1);
+        c.beginPath(); c.moveTo(cx, cy); c.lineTo(ex, ey);
+        c.strokeStyle = "rgba(124,245,208,.12)"; c.stroke();
+      }
+      const [lx, ly] = polar(a, 1 + 34 / R);
+      c.font = `600 13px ${FONT_DATA}`; c.fillStyle = C.text; c.textAlign = "center"; c.textBaseline = "middle";
+      c.fillText(`${a}°`, lx, ly);
+    }
+  }
+
+  // Línea base y emisor
+  c.beginPath(); c.moveTo(cx - R - 18, cy); c.lineTo(cx + R + 18, cy);
+  c.strokeStyle = C.phDim; c.lineWidth = 2; c.stroke();
+  c.fillStyle = C.ph; c.fillRect(cx - 14, cy - 4, 28, 8);   // el sensor
+  c.fillStyle = C.ink; c.beginPath(); c.arc(cx - 6, cy, 2.5, 0, 7); c.arc(cx + 6, cy, 2.5, 0, 7); c.fill();
+
+  // Lados
+  c.font = `600 11px ${FONT_DATA}`; c.fillStyle = C.muted; c.textBaseline = "bottom";
+  const [ix] = polar(180, 1), [dx] = polar(0, 1);
+  c.textAlign = "center";
+  c.fillText(ix < cx ? "IZQ" : "DER", ix, cy - 6); c.fillText(dx > cx ? "DER" : "IZQ", dx, cy - 6);
+  return off;
+}
+
+// ---------------------------------------------------------------- dibujo
+function ecosVisibles(t) {
+  const vida = S.vida * 1000, ecos = [];
+  for (const [a, p] of st.puntos) {
+    const edad = t - p.t;
+    if (edad > vida) st.puntos.delete(a);
+    else ecos.push({ a, d: p.d, f: 1 - edad / vida });
+  }
+  return ecos.sort((x, y) => x.a - y.a);
+}
+
+function dibujarRadar(ecos) {
+  const { cx, cy, R } = G;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  if (rejilla) ctx.drawImage(rejilla, 0, 0, W, H);
+
+  // Estela en abanico
+  ctx.save();
+  semicirculo(ctx, R); ctx.clip();
+  ctx.globalCompositeOperation = "lighter";
+  const e = st.estela, n = e.length;
+  for (let i = 1; i < n; i++) {
+    const [x0, y0] = polar(e[i - 1], 1), [x1, y1] = polar(e[i], 1);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x0, y0); ctx.lineTo(x1, y1); ctx.closePath();
+    ctx.fillStyle = `rgba(124,245,208,${(0.28 * (i / n) ** 1.8).toFixed(3)})`;
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Contorno entre ecos contiguos
+  ctx.lineWidth = 2;
+  for (let i = 1; i < ecos.length; i++) {
+    const p = ecos[i - 1], q = ecos[i];
+    if (q.a - p.a <= 4 && Math.abs(q.d - p.d) <= 25) {
+      const [x0, y0] = polar(p.a, p.d / S.max), [x1, y1] = polar(q.a, q.d / S.max);
+      ctx.strokeStyle = `rgba(255,181,71,${(0.5 * Math.min(p.f, q.f)).toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+  }
+
+  // Ecos con brillo
+  ctx.save();
+  for (const p of ecos) {
+    const [x, y] = polar(p.a, p.d / S.max);
+    const col = p.d <= S.alerta ? C.alert : C.echo;
+    ctx.globalAlpha = p.f;
+    ctx.shadowColor = col; ctx.shadowBlur = 14;
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // Haz actual
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.shadowColor = C.ph; ctx.shadowBlur = 16;
+  const dentro = st.dist > 0 && st.dist <= S.max;
+  const frac = dentro ? st.dist / S.max : 1;
+  const [hx, hy] = polar(st.ang, frac), [ex, ey] = polar(st.ang, 1);
+  ctx.strokeStyle = C.ph; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy); ctx.stroke();
+  if (dentro) {
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,90,78,.45)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.shadowColor = "#fff"; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // Rótulos de esquina
+  ctx.font = `12px ${FONT_DATA}`; ctx.fillStyle = C.muted; ctx.textBaseline = "top"; ctx.textAlign = "left";
+  ctx.fillText(`ALCANCE ${S.max} cm`, 16, 16);
+  ctx.fillStyle = "rgba(255,90,78,.8)";
+  ctx.fillText(`ALERTA  ${S.alerta} cm`, 16, 34);
+}
+
+const pf = $("#perfil"), pctx = pf.getContext("2d");
+function dibujarPerfil(ecos) {
+  const r = pf.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const w = r.width, h = r.height;
+  if (pf.width !== Math.round(w * dpr)) { pf.width = Math.round(w * dpr); pf.height = Math.round(h * dpr); }
+  pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  pctx.clearRect(0, 0, w, h);
+  const top = 4, bot = h - 18, gh = bot - top;
+  pctx.strokeStyle = C.line; pctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = top + gh * i / 4;
+    pctx.beginPath(); pctx.moveTo(0, y); pctx.lineTo(w, y); pctx.stroke();
+  }
+  // Umbral de alerta (más alto = más cerca)
+  const ya = top + gh * Math.min(1, S.alerta / S.max);
+  pctx.strokeStyle = "rgba(255,90,78,.6)"; pctx.setLineDash([3, 3]);
+  pctx.beginPath(); pctx.moveTo(0, ya); pctx.lineTo(w, ya); pctx.stroke(); pctx.setLineDash([]);
+
+  const xDe = a => (S.invertir ? a / 180 : 1 - a / 180) * w;
+  const bw = Math.max(2, w / 91 - 1);
+  for (const p of ecos) {
+    const bh = gh * (1 - p.d / S.max);
+    pctx.globalAlpha = 0.3 + 0.7 * p.f;
+    pctx.fillStyle = p.d <= S.alerta ? C.alert : C.echo;
+    pctx.fillRect(Math.min(w - bw, xDe(p.a)), bot - bh, bw, bh);
+  }
+  pctx.globalAlpha = 1;
+  const hx = xDe(st.ang);
+  pctx.strokeStyle = C.ph; pctx.beginPath(); pctx.moveTo(hx, top); pctx.lineTo(hx, bot); pctx.stroke();
+  pctx.font = `11px ${FONT_DATA}`; pctx.fillStyle = C.muted; pctx.textBaseline = "bottom";
+  pctx.textAlign = "left"; pctx.fillText("IZQ", 0, h);
+  pctx.textAlign = "right"; pctx.fillText("DER", w, h);
+  pctx.textAlign = "center"; pctx.fillText("más alto = más cerca", w / 2, h);
+}
+
+// ---------------------------------------------------------------- panel
+const el = id => document.getElementById(id);
+function actualizarPanel(ecos, t) {
+  el("vAng").innerHTML = `${st.ang}<small>°</small>`;
+  const vd = el("vDist");
+  if (st.dist > 0 && st.dist <= S.max) {
+    vd.innerHTML = `${st.dist}<small>cm</small>`;
+    vd.className = "big" + (st.dist <= S.alerta ? " cerca" : "");
+    el("vEco").textContent = `eco: ${(st.dist * 58).toLocaleString("es-ES")} µs ida y vuelta`;
+  } else {
+    vd.textContent = "---"; vd.className = "big vacio";
+    el("vEco").textContent = "eco: sin retorno";
+  }
+
+  if (ecos.length) {
+    const m = ecos.reduce((x, y) => (y.d < x.d ? y : x));
+    el("vNear").textContent = `${m.d} cm`;
+    el("vNear").style.color = m.d <= S.alerta ? C.alert : C.echo;
+    el("vNearA").textContent = `a ${m.a}°`;
+  } else {
+    el("vNear").textContent = "Despejado"; el("vNear").style.color = C.phDim; el("vNearA").textContent = "";
+  }
+  while (st.llegadas.length && t - st.llegadas[0] > 2000) st.llegadas.shift();
+  el("vEcos").textContent = ecos.length;
+  el("vRate").textContent = (st.llegadas.length / 2).toFixed(1);
+  el("vSweeps").textContent = st.barridos;
+
+  // Estado de conexión
+  const pill = el("pill");
+  let s, txt;
+  if (st.modo === "demo") { s = "demo"; txt = "DEMO"; }
+  else if (st.error) { s = "error"; txt = st.error.toUpperCase(); }
+  else if (t - st.ultimo < 1500) { s = "vivo"; txt = `EN VIVO · ${st.chip}`; }
+  else { s = "espera"; txt = st.ultimo ? "SIN DATOS" : "ESPERANDO"; }
+  if (pill.dataset.s !== s) pill.dataset.s = s;
+  el("pillTxt").textContent = txt;
+  el("btnConectar").textContent = st.port ? "Desconectar" : "Conectar ESP32";
+
+  // Alerta
+  const alerta = st.dist > 0 && st.dist <= S.alerta && t - st.ultimo < 1500;
+  el("banner").hidden = !alerta;
+  if (alerta) el("bannerD").textContent = `${st.dist} cm`;
+  el("scope").classList.toggle("alerta", alerta);
+}
+
+function frame() {
+  const t = performance.now();
+  const ecos = ecosVisibles(t);
+  dibujarRadar(ecos);
+  dibujarPerfil(ecos);
+  actualizarPanel(ecos, t);
+  requestAnimationFrame(frame);
+}
+
+// ---------------------------------------------------------------- controles
+function enlazarAjuste(id, clave, out, fmt) {
+  const inp = el(id);
+  inp.value = S[clave];
+  const sync = () => { S[clave] = +inp.value; el(out).textContent = fmt(S[clave]); guardar(); medir(); };
+  inp.addEventListener("input", sync);
+  el(out).textContent = fmt(S[clave]);
+}
+enlazarAjuste("inMax", "max", "oMax", v => `${v} cm`);
+enlazarAjuste("inAlerta", "alerta", "oAlerta", v => `${v} cm`);
+enlazarAjuste("inVida", "vida", "oVida", v => `${v} s`);
+
+const inv = el("inInv"), son = el("inSon");
+inv.checked = S.invertir; son.checked = S.sonido;
+inv.addEventListener("change", () => { S.invertir = inv.checked; guardar(); medir(); });
+son.addEventListener("change", () => { S.sonido = son.checked; guardar(); if (S.sonido) pitar(); });
+
+el("btnConectar").addEventListener("click", async () => {
+  if (st.port) { await desconectar(); st.error = "Desconectado"; }
+  else conectar();
+});
+el("btnDemo").addEventListener("click", async () => { await desconectar(); ocultarAviso(); limpiar(); iniciarDemo(); });
+el("btnLimpiar").addEventListener("click", limpiar);
+
+function pantallaCompleta() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+document.addEventListener("keydown", ev => {
+  if (ev.target.closest("input") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const k = ev.key.toLowerCase();
+  if (k === "c") limpiar();
+  else if (k === "f") pantallaCompleta();
+  else if (k === "i") { inv.checked = !inv.checked; inv.dispatchEvent(new Event("change")); }
+  else if (k === "d") el("btnDemo").click();
+});
+
+new ResizeObserver(medir).observe(cv);
+document.fonts?.ready.then(medir);
+medir();
+iniciarDemo();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

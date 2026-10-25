@@ -1,0 +1,17 @@
+# Binarios: el APK se publica en GitHub Releases, no en el repositorio
+*.apk
+*.aab
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Compilación de Arduino
+build/
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
