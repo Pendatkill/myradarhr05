@@ -37,8 +37,21 @@ Caja impresa en 3D con la pantalla LCD en el frente. El servo asoma por arriba y
 | 1 | Fuente de 5 V y 1 A | Recomendada para el servo |
 | ~10 | Cables dupont | Según tu montaje, macho-hembra o hembra-hembra |
 | 1 | Cable USB de datos | Uno solo de carga no sirve para programar |
-| 1 | Caja y soporte del sensor impresos en 3D | PLA |
+| 1 | Caja y soporte del sensor impresos en 3D | PLA. Ver [Piezas impresas en 3D](#piezas-impresas-en-3d) |
 | — | Tornillería pequeña | Para fijar el soporte al brazo del servo |
+
+## Piezas impresas en 3D
+
+Hay muchos diseños libres para este montaje. Busca uno que encaje con tus componentes:
+
+| Pieza | Yeggi | Cults3D |
+|---|---|---|
+| Radar completo (sensor + servo) | [Buscar](https://www.yeggi.com/q/ultrasonic+radar+servo/) | [Buscar](https://cults3d.com/en/search?q=ultrasonic+radar) |
+| Soporte del HC-SR04 para el brazo del SG90 | [Buscar](https://www.yeggi.com/q/hc-sr04+sg90+mount/) | [Buscar](https://cults3d.com/en/search?q=hc-sr04+servo+mount) |
+| Caja para LCD 1602 | [Buscar](https://www.yeggi.com/q/lcd+1602+case/) | [Buscar](https://cults3d.com/en/search?q=lcd+1602+case) |
+| Caja para ESP32 | [Buscar](https://www.yeggi.com/q/esp32+case/) | [Buscar](https://cults3d.com/en/search?q=esp32+case) |
+
+Antes de imprimir, comprueba las medidas de tu placa ESP32 y de tu LCD: varían entre fabricantes.
 
 ## Conexiones
 
