@@ -1,6 +1,7 @@
-# Binarios: el APK se publica en GitHub Releases, no en el repositorio
+# Binarios: solo se versiona el APK publicado en apk/
 *.apk
 *.aab
+!apk/*.apk
 
 # Python
 __pycache__/

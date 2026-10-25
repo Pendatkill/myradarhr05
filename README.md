@@ -87,12 +87,14 @@ Al arrancar, la LCD muestra durante unos segundos cómo conectarse.
 
 ### 2. App Android
 
-Descarga el APK desde [Releases](../../releases) e instálalo, o compílalo:
+Descarga [`apk/MyRadar_v1.0.0_arm64.apk`](apk/MyRadar_v1.0.0_arm64.apk) (17 MB) en el móvil y ábrelo. Android pedirá permiso para «instalar apps de origen desconocido».
+
+Este APK funciona en móviles de 64 bits (arm64), que son casi todos los fabricados desde 2017. Para un móvil antiguo de 32 bits, o para modificar la app, compílala:
 
 ```sh
 cd my_radar_app
 flutter pub get
-flutter build apk --release
+flutter build apk --release      # APK universal para cualquier móvil
 ```
 
 La app ofrece tres canales:
@@ -175,6 +177,7 @@ La red propia `MyRadar` usa la clave por defecto `pendatkill`, que está publica
 ## Estructura
 
 ```
+apk/                    App Android lista para instalar
 firmware/radar_esp32/   Firmware del ESP32 (Arduino)
 my_radar_app/           App Android en Flutter
 visor_web/              Visor web con Web Serial
