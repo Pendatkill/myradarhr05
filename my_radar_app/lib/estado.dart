@@ -110,9 +110,9 @@ class RadarEstado {
     }
     final r = <Contacto>[];
     for (final g in grupos) {
+      // El contacto se sitúa en su eco más cercano: rumbo y distancia del mismo punto
       final cercano = g.reduce((a, b) => a.dist <= b.dist ? a : b);
-      final angMedio = (g.fold<int>(0, (s, e) => s + e.ang) / g.length).round();
-      r.add(Contacto(r.length + 1, angMedio, cercano.dist, g.map((e) => e.vida).reduce(max)));
+      r.add(Contacto(r.length + 1, cercano.ang, cercano.dist, g.map((e) => e.vida).reduce(max)));
     }
     return r;
   }
