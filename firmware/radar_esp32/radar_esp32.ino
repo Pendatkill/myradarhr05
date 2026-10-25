@@ -1,5 +1,5 @@
 /*
-  RADAR ULTRASÓNICO — ESP32 Plus (Keyestudio)
+  RADAR ULTRASÓNICO — ESP32 · My Radar by pendatkill_dev
   ------------------------------------------------
   Servo SG90 ........ io18
   Ultrasonidos TRIG . io19 (cable azul)

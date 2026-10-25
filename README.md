@@ -15,7 +15,32 @@ Un sensor HC-SR04 montado sobre un servo SG90 barre 176° y mide la distancia a 
 | Visor web (Chrome o Edge, sin instalar nada) | USB con Web Serial | [`visor_web/`](visor_web/) |
 | Visor de escritorio (Python + pygame) | USB | [`visor_pc/`](visor_pc/) |
 
-## Hardware
+## El montaje
+
+<p align="center">
+  <img src="docs/montaje.jpg" width="420" alt="Radar montado: caja verde impresa en 3D con la pantalla LCD mostrando «Ang: 90 D: 26cm» y «!! OBJETO 26cm», el servo encima y el sensor ultrasónico sobre su brazo">
+</p>
+
+Caja impresa en 3D con la pantalla LCD en el frente. El servo asoma por arriba y lleva el sensor en un soporte atornillado a su brazo. En la foto, la LCD avisa de un objeto a 26 cm, dentro del perímetro de alerta de 30 cm.
+
+## Lista de materiales
+
+| Cant. | Componente | Notas |
+|---|---|---|
+| 1 | Placa de desarrollo ESP32 (ESP32-WROOM-32) con USB-serie CH340 o CP2102 | Hace falta WiFi y Bluetooth LE |
+| 1 | Sensor ultrasónico HC-SR04 | El firmware usa de 2 a 200 cm |
+| 1 | Microservo SG90 | Con su brazo de plástico |
+| 1 | Pantalla LCD 1602 con adaptador I2C (PCF8574) | Dirección 0x27; algunas usan 0x3F |
+| 1 | Resistencia de 1 kΩ | Divisor de tensión del ECHO |
+| 1 | Resistencia de 2 kΩ | Divisor de tensión del ECHO |
+| 1 | Condensador electrolítico de 470–1000 µF, 10 V o más | En la alimentación del servo |
+| 1 | Fuente de 5 V y 1 A | Recomendada para el servo |
+| ~10 | Cables dupont | Según tu montaje, macho-hembra o hembra-hembra |
+| 1 | Cable USB de datos | Uno solo de carga no sirve para programar |
+| 1 | Caja y soporte del sensor impresos en 3D | PLA |
+| — | Tornillería pequeña | Para fijar el soporte al brazo del servo |
+
+## Conexiones
 
 | Componente | Pin del ESP32 |
 |---|---|
@@ -23,8 +48,6 @@ Un sensor HC-SR04 montado sobre un servo SG90 barre 176° y mide la distancia a 
 | HC-SR04 TRIG | GPIO 19 |
 | HC-SR04 ECHO | GPIO 23, **a través de un divisor de tensión** |
 | LCD 1602 I2C | SDA GPIO 21 · SCL GPIO 22 |
-
-Probado con una Keyestudio ESP32 Plus (chip USB CH340).
 
 > **ECHO a 5 V.** El HC-SR04 devuelve 5 V y los GPIO del ESP32 solo admiten 3,3 V. Pon un divisor `ECHO — 1 kΩ — GPIO23 — 2 kΩ — GND` o usa un HC-SR04P alimentado a 3,3 V.
 >
